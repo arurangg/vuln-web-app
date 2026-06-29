@@ -230,3 +230,4 @@ Delete `vulnerable_app.db` from the project root and restart the app. The databa
 ## Legal Notice
 
 This application is provided strictly for educational purposes. Unauthorized access to computer systems is illegal. Ensure you have explicit permission before testing security vulnerabilities on any system you do not own. The authors are not responsible for misuse of this project.
+# vuln-web-app
