@@ -3,6 +3,22 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script>
+        // Restore theme before first paint (no flash). See dark-mode-toggle spec FR-04/FR-05.
+        (function () {
+            try {
+                var saved = localStorage.getItem('theme');
+                if (saved !== 'light' && saved !== 'dark') {
+                    saved = (window.matchMedia &&
+                             window.matchMedia('(prefers-color-scheme: dark)').matches)
+                            ? 'dark' : 'light';
+                }
+                document.documentElement.setAttribute('data-theme', saved);
+            } catch (e) {
+                document.documentElement.setAttribute('data-theme', 'light');
+            }
+        })();
+    </script>
     <title>Dashboard - Security Vulnerability Lab</title>
     <link rel="stylesheet" href="/static/css/styles.css">
 </head>
@@ -11,6 +27,11 @@
     <header class="header">
         <div class="header-title">Security Vulnerability Lab</div>
         <div class="header-logos">
+            <button type="button" id="theme-toggle" class="theme-toggle"
+                    aria-label="Switch to dark theme">
+                <span class="icon-dark" aria-hidden="true">🌙</span>
+                <span class="icon-light" aria-hidden="true">☀️</span>
+            </button>
             <img src="/static/images/PUCIT_Logo.png" alt="PUCIT" class="header-logo">
             <img src="/static/images/excaliat-logo.png" alt="Excaliat" class="header-logo">
             <img src="/static/images/blue-logo-scl2.png" alt="FCCU" class="header-logo">
@@ -105,5 +126,25 @@
             </div>
         </div>
     </main>
+
+    <script>
+        // Theme toggle: flip data-theme, persist, and keep aria-label = next action.
+        (function () {
+            var btn = document.getElementById('theme-toggle');
+            if (!btn) return;
+            function syncLabel() {
+                var dark = document.documentElement.getAttribute('data-theme') === 'dark';
+                btn.setAttribute('aria-label', dark ? 'Switch to light theme' : 'Switch to dark theme');
+            }
+            syncLabel();
+            btn.addEventListener('click', function () {
+                var dark = document.documentElement.getAttribute('data-theme') === 'dark';
+                var next = dark ? 'light' : 'dark';
+                document.documentElement.setAttribute('data-theme', next);
+                try { localStorage.setItem('theme', next); } catch (e) { /* EC-01: ignore */ }
+                syncLabel();
+            });
+        })();
+    </script>
 </body>
 </html>
