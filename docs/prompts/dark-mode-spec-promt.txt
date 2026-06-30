@@ -1,0 +1,118 @@
+Read docs/PRD.md, docs/TDD.md, and .claude/specs/app-foundation.md
+thoroughly. Based on these documents and the existing frontend
+(frontend/templates/*.html and frontend/static/css/styles.css), create a
+detailed feature specification file at .claude/specs/dark-mode-toggle.md
+
+This specification is titled "Dark Mode Toggle Specification" and must
+capture ONLY the behavior needed to add a light/dark theme toggle to the
+three existing pages (login, signup, dashboard). It is a PURELY ADDITIVE,
+PRESENTATIONAL feature: it changes only how the pages look and must NOT
+alter authentication, routing, data handling, escaping, or any of the 8
+intentional vulnerabilities.
+
+Core design constraints the spec must lock in:
+
+- Theme is expressed by a `data-theme` attribute on the root `<html>`
+  element: absent/"light" = light theme, "dark" = dark theme.
+- All themed colors derive from CSS custom properties so both themes
+  share the one existing styles.css. No second stylesheet, no build step,
+  no framework, no new dependencies.
+- The chosen theme is persisted client-side only, in
+  localStorage under the key "theme" with values "light" or "dark".
+  Nothing is stored server-side, in the session, or in a cookie.
+- When no saved value exists, fall back to the OS preference via
+  `window.matchMedia('(prefers-color-scheme: dark)')`. The fallback must
+  NOT write to localStorage — only an explicit user toggle persists.
+- Theme must be restored BEFORE first paint via a small inline script in
+  `<head>` (before the stylesheet link), to prevent a flash of the wrong
+  theme (FOUC).
+- The toggle is a native `<button>` in the shared header (left of the
+  logos) so it is focusable and operable with Enter/Space, with a visible
+  focus indicator in both themes.
+- The button's `aria-label` always names the action it will perform next
+  ("Switch to dark theme" while light is active, "Switch to light theme"
+  while dark is active) and updates on every switch.
+
+The spec must include these sections:
+
+1. **Overview / Purpose** -- Describe the light/dark toggle for the three
+   pages, the data-theme + CSS custom properties approach, localStorage
+   persistence, system-preference fallback, and pre-render restore. State
+   clearly that the feature is additive and presentational only.
+
+2. **Scope & Non-Goals** -- In-scope items (toggle control, light + dark
+   themes, persistence, fallback, no-flash restore, keyboard a11y, CSS
+   refactor to custom properties). Out-of-scope: a table affirming all 8
+   lab vulnerabilities (SQL Injection, Stored XSS, Reflected XSS, Session
+   Hijacking, MD5 password storage, Exposed DB, No Rate Limiting, CSRF)
+   remain UNCHANGED and intentionally present. Non-goals: no server-side
+   theme state, no change to the `{{username}}` placeholder or the
+   server-side str.replace() substitution, no escaping change, no CSRF
+   token, no rate limiter, no secret-key change, no parameterized queries,
+   no password-hash change, no new dependencies.
+
+3. **Affected Files** -- Exactly four existing files, no new source files,
+   no backend changes:
+   - frontend/static/css/styles.css (add :root light custom properties,
+     [data-theme="dark"] overrides, .theme-toggle styles; replace
+     hardcoded colors with var(--...) references)
+   - frontend/templates/login.html, signup.html, dashboard.html (each:
+     pre-render restore script in <head>, toggle button in the header,
+     toggle-handler script). The restore script and toggle markup/handler
+     are IDENTICAL across the three templates. dashboard.html's
+     {{username}} placeholder is left exactly as-is.
+
+4. **Functional Requirements** -- FR-01 through FR-08 covering: Toggle
+   Control, Theme Application (data-theme on <html>), Persistence
+   (localStorage["theme"]), Restore Before Render (head script), System-
+   Preference Fallback (no write on fallback), Accessible Label (reflects
+   next action), Keyboard Operability (Enter/Space + visible focus), and
+   Vulnerability Preservation (dashboard still injects {{username}}
+   unescaped).
+
+5. **Non-Functional Requirements** -- NFR-01 through NFR-07: No Framework,
+   No Flash (synchronous head restore), Single Stylesheet, Visual Parity
+   (light theme pixel-equivalent to today), Contrast (target WCAG AA for
+   body text; adjust brand indigo on dark surfaces), Statelessness (no
+   server state/cookie/session key), Template Hot-Reload Compatibility
+   (templates read from disk per request).
+
+6. **Success Paths** -- SP-01 through SP-07: first visit with light system,
+   first visit with dark system (no localStorage write), toggle to dark,
+   persistence across pages, persistence across reload, toggle back to
+   light, keyboard activation.
+
+7. **Edge Cases** -- EC-01 through EC-07: localStorage unavailable
+   (privacy mode) without breaking render, invalid stored value treated as
+   unset, no matchMedia support defaults to light, rapid repeated toggling
+   stays consistent, dashboard XSS payload still renders unescaped, direct
+   deep link still restores theme, two open tabs reflect saved theme on
+   next load.
+
+8. **Acceptance Criteria** -- AC-01 through AC-09, including: toggle on all
+   three pages, instant switch via data-theme, persistence across reload
+   and pages, system fallback with no write, no-flash restore, aria-label
+   names next action, light theme pixel-equivalent to pre-feature, ALL 8
+   vulnerabilities intact (dashboard {{username}} still unescaped so a
+   <script> username executes), and only the four files in §3 modified.
+
+9. **Test Cases** -- A table with TC-01 through TC-15 covering: toggle
+   present, toggle to dark, toggle to light, persistence across reload,
+   persistence across pages, system fallback, Stored XSS still fires,
+   Reflected XSS still reflects, no-flash restore, aria-label updates,
+   keyboard activation, localStorage blocked, invalid stored value, light
+   parity, and files-unchanged diff check.
+
+10. **Verification Steps** -- Concrete steps run against the live app at
+    http://localhost:3001 (start with `uv run backend/app/main.py`):
+    confirm the toggle on /login and /signup, click + keyboard switch,
+    inspect localStorage and aria-label, verify persistence across reload
+    and across /login -> /signup -> /welcome, verify system fallback and
+    invalid-value fallback, then verify the vulnerabilities remain
+    exploitable (Stored XSS via a <script> username on /welcome, Reflected
+    XSS via /search, Exposed DB via /download/db) and a
+    `git diff --name-only` showing only the four frontend files.
+
+Output ONLY the specification document at
+.claude/specs/dark-mode-toggle.md. Do NOT write any source code or modify
+any other file.
