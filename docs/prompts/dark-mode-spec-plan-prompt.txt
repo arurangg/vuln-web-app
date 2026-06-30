@@ -1,0 +1,124 @@
+Read .claude/specs/dark-mode-toggle.md (the feature spec), plus
+.claude/specs/app-foundation.md, docs/PRD.md, and docs/TDD.md. Also read
+the current frontend/static/css/styles.css and the three templates
+(frontend/templates/login.html, signup.html, dashboard.html) so the plan
+references their real selectors and exact color values.
+
+Based on these, write a detailed step-by-step implementation plan and save
+it as .claude/specs/dark-mode-toggle-plan.md
+
+IMPORTANT: This task is ONLY about writing a plan document. Do NOT create
+or modify any source code, stylesheet, template, or configuration file.
+The only file you should create is .claude/specs/dark-mode-toggle-plan.md.
+
+The plan must open with a "Purpose & Ground Rules" section stating the
+ADDITIVE-ONLY guarantee: every edit is purely presentational and must NOT
+remove, weaken, or remediate any of the 8 intentional vulnerabilities (SQL
+Injection, Stored XSS, Reflected XSS, Session Hijacking, MD5 password
+storage, Exposed DB, No Rate Limiting, CSRF). In particular it must state
+that the dashboard's {{username}} placeholder and the server-side
+html.replace('{{username}}', username) substitution are left exactly as-is
+(Stored XSS stays exploitable), that no backend file is touched
+(main.py, auth.py, auth_service.py, security.py, session.py), and that no
+CSRF token, SameSite/escaping change, rate limiter, or secret-key change is
+introduced. Include a table of the exactly four frontend files touched, and
+note that the <head> restore script, the toggle button markup, and the
+handler script are byte-for-byte identical across the three templates.
+
+Organize the plan into these phases, each listing the exact file and the
+precise before/after edits (with real code blocks and a color-replacement
+table grounded in the current styles.css values):
+
+**Phase 1 -- CSS: Theme Tokens, Dark Overrides, Toggle Styles**
+(file: frontend/static/css/styles.css)
+- 1.1 Add a `:root` light-theme custom-property block at the very top of
+  the file (above the existing Global Reset comment). The token values
+  must capture the CURRENT palette exactly so the light theme stays pixel-
+  identical (surfaces, text, brand/accents, borders, shadows, gradients,
+  error palette, and toggle-control tokens).
+- 1.2 Add a `[data-theme="dark"]` block immediately after :root that
+  overrides only the values that must change for dark (dark surfaces,
+  lighter text, lighter indigo brand for contrast, darker borders/shadows,
+  darkened gradients, dark-but-recognizable error palette, toggle tokens),
+  and sets color-scheme: dark.
+- 1.3 Replace hardcoded color literals throughout the file with var(--...)
+  references via a mechanical refactor — NO rule added or removed, only the
+  right-hand color values change. Provide the full selector/property/
+  before/after replacement table. Note that the colored .tag-* pills, the
+  decorative .circle overlays, and white-on-gradient text keep their
+  literal values. Add a one-time transition on `body`
+  (background-color/color) and give body the token background.
+- 1.4 Append a "Theme Toggle Control" section at the end of the file:
+  .theme-toggle base styles (40x40 button, token background/border/color,
+  rounded, cursor pointer, transition), :hover, :focus-visible (focus
+  glow), and the two-glyph icon swap rules driven by [data-theme="dark"]
+  (moon shown in light, sun shown in dark) so CSS alone swaps the icon.
+
+**Phase 2 -- login.html: Restore Script, Toggle Button, Handler**
+(file: frontend/templates/login.html)
+- 2.1 Insert the pre-render restore script as the FIRST child of <head>,
+  before <title> and the stylesheet <link>, so data-theme is set before
+  any paint. The script reads localStorage["theme"], treats any value
+  other than "light"/"dark" as absent, falls back to
+  matchMedia('(prefers-color-scheme: dark)'), defaults to light if
+  matchMedia is absent, wraps everything in try/catch (storage throws ->
+  light, no crash), and does NOT write to storage on the fallback path.
+- 2.2 Add the toggle as the FIRST child of `.header-logos` (left of the
+  three logos): a `<button type="button" id="theme-toggle"
+  class="theme-toggle">` with aria-label starting as "Switch to dark
+  theme" and two aria-hidden glyph spans (.icon-dark moon, .icon-light
+  sun). type="button" prevents accidental form submission; native <button>
+  is tab-reachable and Enter/Space-activatable.
+- 2.3 Append a new <script> just before </body> (after the existing login
+  fetch script). It grabs #theme-toggle, defines syncLabel() that sets the
+  aria-label to the next action based on current data-theme, calls
+  syncLabel() once on load, and on click flips data-theme on <html>,
+  persists to localStorage in a try/catch (ignore on failure), and calls
+  syncLabel(). Note that the existing fetch-based login script is unchanged
+  and no CSRF token is added.
+
+**Phase 3 -- signup.html: Restore Script, Toggle Button, Handler**
+(file: frontend/templates/signup.html)
+- Apply the IDENTICAL three edits from Phase 2: restore script as first
+  child of <head> (before the Sign Up <title>), toggle button as first
+  child of .header-logos, and the handler script appended before </body>
+  after the existing confirm-password validation script. Note the existing
+  password-match script is unchanged, the signup form keeps NO CSRF token,
+  and the username input stays unsanitized (Stored XSS preserved).
+
+**Phase 4 -- dashboard.html: Restore Script, Toggle Button, Handler**
+(file: frontend/templates/dashboard.html)
+- Apply the same three edits (restore script first in <head>, toggle
+  button first in .header-logos, handler script before </body>; dashboard
+  currently has no script block so this is the only one). Include a
+  CRITICAL vulnerability-preservation note: the hero line
+  `Logged in as <strong>{{username}}</strong>` is left exactly as written
+  so the backend's html.replace('{{username}}', username) keeps injecting
+  the username UNESCAPED — do not wrap, escape, or relocate it; the Stored
+  XSS must still fire on dashboard load.
+
+**Phase 5 -- Verification (no code changes)**
+- Start the app with `uv run backend/app/main.py` (serves at
+  http://localhost:3001) and run the spec's verification steps
+  (dark-mode-toggle.md §10) as two tables:
+  - Toggle/persistence/accessibility checks (TC-01..TC-05, TC-09..TC-14):
+    toggle present, switch to dark/light with localStorage updating,
+    keyboard activation, aria-label, persistence on reload and across
+    pages, system fallback, invalid value, storage blocked, light parity.
+  - Vulnerabilities-still-intact checks: Stored XSS (TC-07) via a <script>
+    username on /welcome, Reflected XSS (TC-08) via /search, Exposed DB via
+    /download/db, CSRF (no token in /signup form or /login flow).
+  - File-scope check: `git diff --name-only` must output exactly the four
+    frontend files and no backend file (TC-15 / AC-09).
+
+End with a short "Risk & Rollback Notes" section: light-theme visual
+regression risk (mitigated by sourcing every light token from the current
+literal value), FOUC risk (restore script must stay in <head> before the
+stylesheet link), accidental-vulnerability-fix risk (the only forbidden
+change is altering {{username}} or adding tokens/escaping to forms — a
+failing Stored-XSS check means the lab broke and must be reverted), and the
+rollback path (`git checkout -- frontend/` restores pre-feature state with
+no backend or DB impact).
+
+Output ONLY the plan document at .claude/specs/dark-mode-toggle-plan.md. Do
+NOT create or modify any other file.
