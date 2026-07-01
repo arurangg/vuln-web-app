@@ -4,7 +4,7 @@ from starlette.requests import Request
 from fastapi.responses import RedirectResponse, HTMLResponse, JSONResponse
 
 from app.db.session import get_db
-from app.core.security import hash_password
+from app.core.security import hash_password, verify_password
 
 
 def signup(username: str, email: str, password: str):
@@ -45,10 +45,11 @@ def login(request: Request, username: str, password: str):
             status_code=401,
         )
 
-    hashed = hash_password(password)
-
-    # VULNERABILITY #1: SQL Injection via string concatenation
-    query = "SELECT * FROM users WHERE username = '" + username + "' AND password = '" + hashed + "'"
+    # VULNERABILITY #1: SQL Injection via string concatenation (username still raw).
+    # Password is NO LONGER matched in SQL — bcrypt hashes are salted, so the
+    # stored hash cannot be compared with a single equality. We fetch by username
+    # and verify the password in Python below.
+    query = "SELECT * FROM users WHERE username = '" + username + "'"
 
     conn = get_db()
     try:
@@ -62,7 +63,7 @@ def login(request: Request, username: str, password: str):
     finally:
         conn.close()
 
-    if user:
+    if user and verify_password(password, user["password"]):
         request.session["user_id"] = user["id"]
         request.session["username"] = user["username"]
         request.session["email"] = user["email"]
