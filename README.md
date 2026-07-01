@@ -16,8 +16,9 @@ Built with FastAPI and SQLite — simple enough to read in one sitting, realisti
 |-----------|-----------|
 | Backend | FastAPI, Uvicorn |
 | Database | SQLite3 |
-| Frontend | Vanilla HTML5, CSS3, JavaScript |
+| Frontend | Vanilla HTML5, CSS3, JavaScript (light/dark theming via CSS custom properties) |
 | Session Management | Starlette SessionMiddleware |
+| Password Hashing | bcrypt (work factor 12) |
 | Package Manager | uv |
 | Python | 3.12+ |
 
@@ -29,7 +30,7 @@ vuln-web-app/
 │   ├── app/
 │   │   ├── main.py                  # Entry point — starts the server
 │   │   ├── core/
-│   │   │   └── security.py          # Password hashing (MD5, no salt)
+│   │   │   └── security.py          # Password hashing (bcrypt, work factor 12)
 │   │   ├── db/
 │   │   │   └── session.py           # Database connection and schema setup
 │   │   ├── services/
@@ -39,11 +40,11 @@ vuln-web-app/
 │   └── pyproject.toml               # Backend package config
 ├── frontend/
 │   ├── templates/
-│   │   ├── login.html               # Login page (fetch-based)
-│   │   ├── signup.html              # Registration page (form POST)
-│   │   └── dashboard.html           # Protected dashboard
+│   │   ├── login.html               # Login page (fetch-based; theme toggle)
+│   │   ├── signup.html              # Registration page (form POST; theme toggle)
+│   │   └── dashboard.html           # Protected dashboard (theme toggle)
 │   └── static/
-│       ├── css/styles.css           # Application styling
+│       ├── css/styles.css           # Application styling (light/dark themes via CSS variables)
 │       └── images/                  # Organization logos (PUCIT, Excaliat, FCCU)
 ├── docs/
 │   ├── PRD.md                       # Product requirements
@@ -107,10 +108,12 @@ The app starts at **http://localhost:3001**. The database file (`vulnerable_app.
 | 2 | Stored XSS | A03:2021 - Injection | `auth.py` — unescaped username on dashboard |
 | 3 | Reflected XSS | A03:2021 - Injection | `auth.py` — unescaped query param in search |
 | 4 | Session Hijacking | A07:2021 - Auth Failures | `main.py` — hardcoded secret key |
-| 5 | Weak Password Storage | A02:2021 - Crypto Failures | `security.py` — MD5 without salt |
+| 5 | ~~Weak Password Storage~~ ✅ **Fixed** | A02:2021 - Crypto Failures | `security.py` — ~~MD5 without salt~~ now **bcrypt** (work factor 12) |
 | 6 | Exposed Database | A01:2021 - Access Control | `auth.py` — unauthenticated `/download/db` |
 | 7 | No Rate Limiting | A07:2021 - Auth Failures | Global — no throttling middleware |
 | 8 | CSRF | A01:2021 - Access Control | Global — no CSRF tokens on forms |
+
+> **Remediation note:** Vulnerability #5 has been fixed (branch `fix/bcrypt-password-hashing`). Passwords are now hashed with **bcrypt** (work factor 12) and verified in Python — `login()` fetches the user by username and calls `verify_password()` rather than matching the hash inside the SQL query. The other **7 vulnerabilities remain intentionally present**. Because password checking moved out of SQL, the trivial injection login bypass (`' OR '1'='1' --`) no longer grants access on its own, but the query is still built by string concatenation, so SQL injection (#1) is still exploitable via crafted payloads. Legacy MD5 accounts can no longer log in — reset the database and re-register (see below).
 
 ---
 
@@ -118,6 +121,8 @@ The app starts at **http://localhost:3001**. The database file (`vulnerable_app.
 
 - User registration with client-side password confirmation
 - User login via async fetch with inline error display
+- **Passwords hashed with bcrypt (work factor 12)**, verified server-side in Python
+- **Light/dark theme toggle** on all pages — preference saved in `localStorage`, restored before render (no flash), with `prefers-color-scheme` fallback and an accessible, keyboard-operable control
 - Protected dashboard with personalized greeting
 - Vulnerability discovery checklist with color-coded tags
 - Responsive split-screen layout for auth pages
@@ -183,7 +188,7 @@ Delete `vulnerable_app.db` from the project root and restart the app. The databa
 
 | # | Feature | Description |
 |---|---------|-------------|
-| 1 | Dark Mode Toggle | Switch between light and dark themes with preference saved in localStorage |
+| 1 | ✅ Dark Mode Toggle *(implemented)* | Switch between light and dark themes with preference saved in localStorage |
 | 2 | Remember Me Checkbox | Keep session alive across browser restarts using persistent cookies |
 | 3 | Password Strength Meter | Real-time visual indicator showing password strength during signup |
 | 4 | Forgot Password (Email Link) | Send a password reset link to the user's registered email |
